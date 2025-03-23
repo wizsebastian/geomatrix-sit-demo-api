@@ -1,0 +1,334 @@
+import os
+import sys
+import pyodbc
+import pandas as pd
+from datetime import datetime
+from typing import List, Dict, Any, Optional, Tuple
+
+
+class GeoDBLotesManager:
+    """
+    Gestor de bases de datos geoespaciales para archivos Access (.mdb)
+    """
+
+    def __init__(self, db_path):
+        """
+        Inicializa el gestor de base de datos geoespaciales
+
+        Args:
+            db_path (str): Ruta completa al archivo .mdb
+        """
+        self.db_path = db_path
+        self.conn = None
+        self.cursor = None
+
+    def _get_available_drivers(self):
+        """
+        Detecta los drivers de Access disponibles en el sistema
+
+        Returns:
+            list: Lista de drivers disponibles
+        """
+        drivers = []
+        try:
+            for driver in pyodbc.drivers():
+                if "Access" in driver:
+                    drivers.append(driver)
+        except Exception as e:
+            print(f"Error al detectar drivers: {e}")
+        return drivers
+
+    def conectar(self):
+        """
+        Establece la conexión con la base de datos
+
+        Returns:
+            bool: True si la conexión fue exitosa, False en caso contrario
+        """
+        try:
+            # Verificar que el archivo exista
+            if not os.path.exists(self.db_path):
+                print(f"Error: La base de datos no existe en la ruta: {self.db_path}")
+                return False
+
+            # Detectar drivers disponibles
+            drivers = self._get_available_drivers()
+            if not drivers:
+                print("Error: No se encontraron drivers de Access instalados.")
+                print("Instala el driver ODBC para Microsoft Access.")
+                return False
+
+            print(f"Drivers detectados: {drivers}")
+
+            # Intentar conectar con cada driver disponible
+            for driver in drivers:
+                try:
+                    conn_str = f"DRIVER={{{driver}}};DBQ={self.db_path};"
+                    print(f"Intentando conectar con: {conn_str}")
+
+                    self.conn = pyodbc.connect(conn_str)
+                    self.cursor = self.conn.cursor()
+                    print(f"Conexión exitosa usando driver: {driver}")
+                    return True
+                except pyodbc.Error as e:
+                    print(f"Error al conectar usando {driver}: {e}")
+
+            # Si llegamos aquí, ningún driver funcionó
+            print("No se pudo conectar con ningún driver disponible")
+
+            # Información sobre arquitectura para ayudar a depurar
+            print(f"Versión de Python: {sys.version}")
+            print(
+                f"Arquitectura de Python: {'64 bits' if sys.maxsize > 2**32 else '32 bits'}"
+            )
+            print(
+                "Asegúrate de que la arquitectura de Python (32 o 64 bits) coincida con el driver de Access instalado"
+            )
+
+            return False
+        except Exception as e:
+            print(f"Error inesperado al conectar: {e}")
+            return False
+
+    def desconectar(self):
+        """Cierra la conexión con la base de datos"""
+        try:
+            if self.cursor:
+                self.cursor.close()
+            if self.conn:
+                self.conn.close()
+            self.cursor = None
+            self.conn = None
+            print("Conexión cerrada")
+        except Exception as e:
+            print(f"Error al desconectar: {e}")
+
+    def listar_tablas(self):
+        """
+        Lista todas las tablas en la base de datos
+
+        Returns:
+            list: Lista de nombres de tablas
+        """
+        if not self.conn:
+            if not self.conectar():
+                return []
+
+        tablas = []
+        try:
+            for tabla in self.cursor.tables(tableType="TABLE"):
+                # Filtrar tablas del sistema (comienzan con "MSys")
+                if not tabla.table_name.startswith("MSys"):
+                    tablas.append(tabla.table_name)
+            return tablas
+        except pyodbc.Error as e:
+            print(f"Error al listar tablas: {e}")
+            return []
+
+    def describir_tabla(self, nombre_tabla):
+        """
+        Describe la estructura de una tabla
+
+        Args:
+            nombre_tabla (str): Nombre de la tabla
+
+        Returns:
+            list: Información sobre las columnas de la tabla
+        """
+        if not self.conn:
+            if not self.conectar():
+                return []
+
+        try:
+            columnas = []
+            for column in self.cursor.columns(table=nombre_tabla):
+                columnas.append(
+                    {
+                        "nombre": column.column_name,
+                        "tipo": column.type_name,
+                        "nullable": column.nullable,
+                        "tamaño": column.column_size,
+                    }
+                )
+            return columnas
+        except pyodbc.Error as e:
+            print(f"Error al describir tabla '{nombre_tabla}': {e}")
+            return []
+
+    def obtener_lotes(self, limit=None, where=None):
+        """
+        Lee los datos de la tabla lotes_muestra
+
+        Args:
+            limit (int, optional): Limitar número de registros
+            where (str, optional): Condición WHERE para filtrar datos
+
+        Returns:
+            pandas.DataFrame: DataFrame con los datos
+        """
+        if not self.conn:
+            if not self.conectar():
+                return None
+
+        try:
+            sql = "SELECT "
+            if limit:
+                sql += f"TOP {limit} "
+
+            sql += "* FROM [lotes_muestra]"
+
+            if where:
+                sql += f" WHERE {where}"
+
+            print(f"Ejecutando consulta: {sql}")
+            return pd.read_sql(sql, self.conn)
+        except pyodbc.Error as e:
+            print(f"Error al leer tabla 'lotes_muestra': {e}")
+            return None
+
+    def crear_tabla_muestra_registro(self):
+        """
+        Crea una tabla muestra_registro para almacenar información adicional
+
+        Returns:
+            bool: True si se creó correctamente
+        """
+        if not self.conn:
+            if not self.conectar():
+                return False
+
+        try:
+            # Verificar si la tabla ya existe
+            tablas = self.listar_tablas()
+            if "muestra_registro" in tablas:
+                print("La tabla 'muestra_registro' ya existe.")
+                return False
+
+            # Crear la tabla de registro
+            sql = """
+            CREATE TABLE [muestra_registro] (
+                [ID_Registro] COUNTER PRIMARY KEY,
+                [OBJECTID_REF] INTEGER,
+                [RINCON] TEXT(50),
+                [RC] TEXT(10),
+                [Fecha_Registro] DATETIME,
+                [Tipo_Muestra] TEXT(50),
+                [Observaciones] MEMO,
+                [Tecnico] TEXT(50),
+                [Profundidad] DOUBLE,
+                [Valor_Medicion] DOUBLE,
+                [Unidades] TEXT(20),
+                [Estado_Muestra] TEXT(20),
+                [Validado] BIT,
+                [Coord_X] DOUBLE,
+                [Coord_Y] DOUBLE,
+                [Altitud] DOUBLE,
+                [Metodo_Muestreo] TEXT(100),
+                [Equipo_Usado] TEXT(100),
+                [Usuario_Sistema] TEXT(50),
+                [Fecha_Procesamiento] DATETIME
+            )
+            """
+
+            self.cursor.execute(sql)
+
+            # Crear índice para la referencia
+            self.cursor.execute(
+                "CREATE INDEX [idx_OBJECTID_REF] ON [muestra_registro] ([OBJECTID_REF])"
+            )
+
+            self.conn.commit()
+            print("Tabla 'muestra_registro' creada correctamente.")
+            return True
+
+        except pyodbc.Error as e:
+            print(f"Error al crear tabla 'muestra_registro': {e}")
+            self.conn.rollback()
+            return False
+
+    def agregar_registro_muestra(self, objectid_ref, datos):
+        """
+        Agrega un nuevo registro de muestra a la tabla muestra_registro
+
+        Args:
+            objectid_ref (int): OBJECTID de referencia en lotes_muestra
+            datos (dict): Datos del registro
+
+        Returns:
+            bool: True si se agregó correctamente
+        """
+        if not self.conn:
+            if not self.conectar():
+                return False
+
+        try:
+            # Convertir a entero Python estándar si es necesario
+            objectid_ref = int(objectid_ref)
+
+            # Obtener información del lote referenciado
+            query = f"SELECT ASOC, CODE FROM [lotes_muestra] WHERE [OBJECTID] = ?"
+            self.cursor.execute(query, (objectid_ref,))
+            lote = self.cursor.fetchone()
+
+            if not lote:
+                print(f"No se encontró lote con OBJECTID {objectid_ref}")
+                return False
+
+            # Extraer RINCON y RC (o los campos que correspondan en tu tabla)
+            rincon = lote[0] if lote[0] else ""
+            rc = lote[1] if lote[1] else ""
+
+            # Preparar datos completos
+            datos_completos = {
+                "OBJECTID_REF": objectid_ref,
+                "RINCON": rincon,
+                "RC": rc,
+                "Fecha_Registro": datetime.now(),
+                "Usuario_Sistema": datos.get("Usuario", "Sistema"),
+            }
+
+            # Agregar el resto de los datos
+            for campo, valor in datos.items():
+                if campo != "Usuario":  # Ya se procesó
+                    datos_completos[campo] = valor
+
+            # Construir la consulta SQL
+            campos = ", ".join([f"[{campo}]" for campo in datos_completos.keys()])
+            placeholders = ", ".join(["?" for _ in datos_completos.keys()])
+            valores = list(datos_completos.values())
+
+            sql = f"INSERT INTO [muestra_registro] ({campos}) VALUES ({placeholders})"
+
+            self.cursor.execute(sql, valores)
+            self.conn.commit()
+            print("Registro de muestra agregado correctamente.")
+            return True
+
+        except pyodbc.Error as e:
+            print(f"Error al agregar registro de muestra: {e}")
+            self.conn.rollback()
+            return False
+
+    def obtener_muestras(self, filtro=None):
+        """
+        Obtiene registros de muestras con opción de filtrado
+
+        Args:
+            filtro (str, optional): Condición WHERE para filtrar
+
+        Returns:
+            pandas.DataFrame: Muestras registradas
+        """
+        if not self.conn:
+            if not self.conectar():
+                return None
+
+        try:
+            sql = "SELECT * FROM [muestra_registro]"
+            if filtro:
+                sql += f" WHERE {filtro}"
+
+            return pd.read_sql(sql, self.conn)
+        except pyodbc.Error as e:
+            print(f"Error al obtener muestras: {e}")
+            return None
