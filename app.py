@@ -4,6 +4,7 @@ from flask import Flask, request, jsonify
 from datetime import datetime
 from geo_db_lotes_manager import GeoDBLotesManager
 from werkzeug.exceptions import BadRequest
+import pandas as pd  # Asegúrate de tener esta importación al inicio del archivo
 
 app = Flask(__name__)
 
@@ -136,6 +137,86 @@ def crear_titular():
 #########################################
 # Endpoints para la tabla SEGUIMIENTO
 #########################################
+@app.route("/api/lotes", methods=["GET"])
+def get_lotes_geoespaciales():
+    try:
+        filtro = request.args.get("filtro")
+        page = int(request.args.get("page", 1))
+        page_size = int(request.args.get("page_size", 10))
+
+        if page < 1:
+            page = 1
+        if page_size < 1:
+            page_size = 10
+        if page_size > 100:
+            page_size = 100
+
+        # Obtener todos los lotes filtrados
+        lotes_df = db_manager.obtener_lotes(where=filtro)
+        if lotes_df is None:
+            return jsonify({"error": "Error al obtener lotes geoespaciales"}), 500
+
+        total_registros = len(lotes_df)
+        total_paginas = (total_registros + page_size - 1) // page_size
+        inicio = (page - 1) * page_size
+        fin = inicio + page_size
+
+        # Cortar la DataFrame para la página actual
+        lotes_pagina = lotes_df.iloc[inicio:fin].to_dict("records")
+
+        # Serializar valores
+        for lote in lotes_pagina:
+            for key, value in lote.items():
+                if isinstance(value, bytes):
+                    lote[key] = value.decode("utf-8", errors="replace")
+                elif isinstance(value, datetime):
+                    if pd.isnull(value):
+                        lote[key] = None
+                    else:
+                        lote[key] = json_serial(value)
+
+        return jsonify(
+            {
+                "lotes": lotes_pagina,
+                "page": page,
+                "page_size": page_size,
+                "total_registros": total_registros,
+                "total_paginas": total_paginas,
+            }
+        )
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/lotes/<int:objectid>", methods=["GET"])
+def get_lote_por_id(objectid):
+    try:
+        filtro = f"OBJECTID = {objectid}"
+        lote_df = db_manager.obtener_lotes(where=filtro)
+
+        if lote_df is None or lote_df.empty:
+            return (
+                jsonify({"error": f"No se encontró el lote con OBJECTID {objectid}"}),
+                404,
+            )
+
+        lote = lote_df.iloc[0].to_dict()
+
+        # Serializar valores
+        for key, value in lote.items():
+            if isinstance(value, bytes):
+                lote[key] = value.decode("utf-8", errors="replace")
+            elif isinstance(value, datetime):
+                if pd.isnull(value):
+                    lote[key] = None
+                else:
+                    lote[key] = json_serial(value)
+
+        return jsonify({"lote": lote})
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 # Obtener todos los seguimientos
