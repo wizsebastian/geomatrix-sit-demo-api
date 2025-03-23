@@ -1,6 +1,7 @@
 import os
 import pyodbc
 from geo_db_lotes_manager import GeoDBLotesManager
+from datetime import datetime
 
 print("waracha", pyodbc.drivers())
 
@@ -40,7 +41,95 @@ def main():
             print("\nEjemplo de lotes (primeros 5):")
             print(lotes)
 
+            # NUEVA SECCIÓN: Crear nuevas tablas
+            print("\n========== CREACIÓN DE NUEVAS TABLAS ==========")
+
+            # Crear las tablas si no existen
+            print("\nCreando tabla 'titular'...")
+            db.crear_tabla_titular()
+
+            print("\nCreando tabla 'seguimiento'...")
+            db.crear_tabla_seguimiento()
+
+            print("\nCreando tabla 'servicio_tecnico'...")
+            db.crear_tabla_servicio_tecnico()
+
+            # Si hay al menos un lote, agregar registros de ejemplo
+            if len(lotes) > 0:
+                # Convertir de numpy.int64 a int Python estándar
+                objectid = int(lotes.iloc[0]["OBJECTID"])
+
+                # Agregar ejemplo de registro titular
+                print(
+                    f"\nAgregando registro de titular para el lote con OBJECTID {objectid}..."
+                )
+                datos_titular = {
+                    "CODIGO_LOTE": "LOT-2023-001",
+                    "AC": "AC-432",
+                    "TITULAR": "Juan Rodríguez Pérez",
+                    "CEDULA": "V-12345678",
+                    "FECHA_ASIGNACION": datetime.now(),
+                    "Usuario": "admin_sistema",
+                }
+                db.agregar_titular(objectid, datos_titular)
+
+                # Agregar ejemplo de registro seguimiento
+                print(
+                    f"\nAgregando registro de seguimiento para el lote con OBJECTID {objectid}..."
+                )
+                datos_seguimiento = {
+                    "ESTADO": "ACTIVO",
+                    "ACCION": "DESARROLLO",
+                    "DEPARTAMENTO": "Departamento Agrícola",
+                    "GERENCIA": "Gerencia de Operaciones",
+                    "Usuario": "admin_sistema",
+                }
+                db.agregar_seguimiento(objectid, datos_seguimiento)
+
+                # Agregar ejemplo de registro servicio_tecnico
+                print(
+                    f"\nAgregando registro de servicio técnico para el lote con OBJECTID {objectid}..."
+                )
+                datos_servicio = {
+                    "TECNICO_RESPONSABLE": "María González",
+                    "CULTIVO": "Maíz",
+                    "FECHA_SIEMBRA": datetime.now(),
+                    "PREPARACION_TIERRA": "RASTRA",
+                    "RIESGO": "ASPERSION",
+                    "CONTROL_PLAGAS": True,
+                    "FERTILIZACION": True,
+                    "COSECHA": False,
+                    "Usuario": "admin_sistema",
+                }
+                db.agregar_servicio_tecnico(objectid, datos_servicio)
+
+                # Consultar registros agregados
+                print("\n===== REGISTROS ALMACENADOS EN NUEVAS TABLAS =====")
+
+                print("\nConsultando registros de titular:")
+                titulares = db.obtener_titulares()
+                if titulares is not None and not titulares.empty:
+                    print(titulares)
+                else:
+                    print("No se encontraron registros de titular.")
+
+                print("\nConsultando registros de seguimiento:")
+                seguimientos = db.obtener_seguimientos()
+                if seguimientos is not None and not seguimientos.empty:
+                    print(seguimientos)
+                else:
+                    print("No se encontraron registros de seguimiento.")
+
+                print("\nConsultando registros de servicio técnico:")
+                servicios = db.obtener_servicios_tecnicos()
+                if servicios is not None and not servicios.empty:
+                    print(servicios)
+                else:
+                    print("No se encontraron registros de servicio técnico.")
+
+            # La siguiente sección es del código original
             # Crear tabla muestra_registro si no existe
+            print("\n===== CONTINUANDO CON LA FUNCIONALIDAD ORIGINAL =====")
             print("\nCreando tabla 'muestra_registro'...")
             db.crear_tabla_muestra_registro()
 

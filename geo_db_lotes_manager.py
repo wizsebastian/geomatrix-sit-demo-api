@@ -332,3 +332,423 @@ class GeoDBLotesManager:
         except pyodbc.Error as e:
             print(f"Error al obtener muestras: {e}")
             return None
+
+    # NUEVOS MÉTODOS PARA LAS TABLAS ADICIONALES
+    def crear_tabla_titular(self):
+        """
+        Crea una tabla titular para almacenar información de los titulares de lotes
+
+        Returns:
+            bool: True si se creó correctamente
+        """
+        if not self.conn:
+            if not self.conectar():
+                return False
+
+        try:
+            # Verificar si la tabla ya existe
+            tablas = self.listar_tablas()
+            if "titular" in tablas:
+                print("La tabla 'titular' ya existe.")
+                return False
+
+            # Crear la tabla de titular
+            sql = """
+            CREATE TABLE [titular] (
+                [ID_Titular] COUNTER PRIMARY KEY,
+                [CODIGO_LOTE] TEXT(50),
+                [AC] TEXT(50),
+                [TITULAR] TEXT(100),
+                [CEDULA] TEXT(20),
+                [FECHA_ASIGNACION] DATETIME,
+                [OBJECTID_REF] INTEGER,
+                [Usuario_Sistema] TEXT(50),
+                [Fecha_Registro] DATETIME
+            )
+            """
+
+            self.cursor.execute(sql)
+
+            # Crear índice para la referencia
+            self.cursor.execute(
+                "CREATE INDEX [idx_OBJECTID_REF_titular] ON [titular] ([OBJECTID_REF])"
+            )
+
+            self.conn.commit()
+            print("Tabla 'titular' creada correctamente.")
+            return True
+
+        except pyodbc.Error as e:
+            print(f"Error al crear tabla 'titular': {e}")
+            self.conn.rollback()
+            return False
+
+    def crear_tabla_seguimiento(self):
+        """
+        Crea una tabla seguimiento para almacenar información de seguimiento de lotes
+
+        Returns:
+            bool: True si se creó correctamente
+        """
+        if not self.conn:
+            if not self.conectar():
+                return False
+
+        try:
+            # Verificar si la tabla ya existe
+            tablas = self.listar_tablas()
+            if "seguimiento" in tablas:
+                print("La tabla 'seguimiento' ya existe.")
+                return False
+
+            # Crear la tabla de seguimiento
+            sql = """
+            CREATE TABLE [seguimiento] (
+                [ID_Seguimiento] COUNTER PRIMARY KEY,
+                [OBJECTID_REF] INTEGER,
+                [ESTADO] TEXT(50),
+                [ACCION] TEXT(50),
+                [DEPARTAMENTO] TEXT(100),
+                [GERENCIA] TEXT(100),
+                [Usuario_Sistema] TEXT(50),
+                [Fecha_Registro] DATETIME
+            )
+            """
+
+            self.cursor.execute(sql)
+
+            # Crear índice para la referencia
+            self.cursor.execute(
+                "CREATE INDEX [idx_OBJECTID_REF_seg] ON [seguimiento] ([OBJECTID_REF])"
+            )
+
+            self.conn.commit()
+            print("Tabla 'seguimiento' creada correctamente.")
+            return True
+
+        except pyodbc.Error as e:
+            print(f"Error al crear tabla 'seguimiento': {e}")
+            self.conn.rollback()
+            return False
+
+    def crear_tabla_servicio_tecnico(self):
+        """
+        Crea una tabla servicio_tecnico para almacenar información técnica de los cultivos
+
+        Returns:
+            bool: True si se creó correctamente
+        """
+        if not self.conn:
+            if not self.conectar():
+                return False
+
+        try:
+            # Verificar si la tabla ya existe
+            tablas = self.listar_tablas()
+            if "servicio_tecnico" in tablas:
+                print("La tabla 'servicio_tecnico' ya existe.")
+                return False
+
+            # Crear la tabla de servicio técnico
+            sql = """
+            CREATE TABLE [servicio_tecnico] (
+                [ID_Servicio] COUNTER PRIMARY KEY,
+                [OBJECTID_REF] INTEGER,
+                [TECNICO_RESPONSABLE] TEXT(100),
+                [CULTIVO] TEXT(50),
+                [FECHA_SIEMBRA] DATETIME,
+                [PREPARACION_TIERRA] TEXT(50),
+                [RIESGO] TEXT(50),
+                [CONTROL_PLAGAS] BIT,
+                [FERTILIZACION] BIT,
+                [COSECHA] BIT,
+                [Usuario_Sistema] TEXT(50),
+                [Fecha_Registro] DATETIME
+            )
+            """
+
+            self.cursor.execute(sql)
+
+            # Crear índice para la referencia
+            self.cursor.execute(
+                "CREATE INDEX [idx_OBJECTID_REF_serv] ON [servicio_tecnico] ([OBJECTID_REF])"
+            )
+
+            self.conn.commit()
+            print("Tabla 'servicio_tecnico' creada correctamente.")
+            return True
+
+        except pyodbc.Error as e:
+            print(f"Error al crear tabla 'servicio_tecnico': {e}")
+            self.conn.rollback()
+            return False
+
+    def agregar_titular(self, objectid_ref, datos):
+        """
+        Agrega un nuevo registro a la tabla titular
+
+        Args:
+            objectid_ref (int): OBJECTID de referencia en lotes_muestra
+            datos (dict): Datos del titular con las claves:
+                        CODIGO_LOTE, AC, TITULAR, CEDULA, FECHA_ASIGNACION
+
+        Returns:
+            bool: True si se agregó correctamente
+        """
+        if not self.conn:
+            if not self.conectar():
+                return False
+
+        try:
+            # Convertir a entero Python estándar si es necesario
+            objectid_ref = int(objectid_ref)
+
+            # Verificar que la tabla existe
+            tablas = self.listar_tablas()
+            if "titular" not in tablas:
+                self.crear_tabla_titular()
+
+            # Preparar datos completos
+            datos_completos = {
+                "OBJECTID_REF": objectid_ref,
+                "CODIGO_LOTE": datos.get("CODIGO_LOTE", ""),
+                "AC": datos.get("AC", ""),
+                "TITULAR": datos.get("TITULAR", ""),
+                "CEDULA": datos.get("CEDULA", ""),
+                "FECHA_ASIGNACION": datos.get("FECHA_ASIGNACION", datetime.now()),
+                "Usuario_Sistema": datos.get("Usuario", "Sistema"),
+                "Fecha_Registro": datetime.now(),
+            }
+
+            # Construir la consulta SQL
+            campos = ", ".join([f"[{campo}]" for campo in datos_completos.keys()])
+            placeholders = ", ".join(["?" for _ in datos_completos.keys()])
+            valores = list(datos_completos.values())
+
+            sql = f"INSERT INTO [titular] ({campos}) VALUES ({placeholders})"
+
+            self.cursor.execute(sql, valores)
+            self.conn.commit()
+            print("Registro de titular agregado correctamente.")
+            return True
+
+        except pyodbc.Error as e:
+            print(f"Error al agregar registro de titular: {e}")
+            self.conn.rollback()
+            return False
+
+    def agregar_seguimiento(self, objectid_ref, datos):
+        """
+        Agrega un nuevo registro a la tabla seguimiento
+
+        Args:
+            objectid_ref (int): OBJECTID de referencia en lotes_muestra
+            datos (dict): Datos del seguimiento con las claves:
+                        ESTADO, ACCION, DEPARTAMENTO, GERENCIA
+
+        Returns:
+            bool: True si se agregó correctamente
+        """
+        if not self.conn:
+            if not self.conectar():
+                return False
+
+        try:
+            # Convertir a entero Python estándar si es necesario
+            objectid_ref = int(objectid_ref)
+
+            # Verificar que la tabla existe
+            tablas = self.listar_tablas()
+            if "seguimiento" not in tablas:
+                self.crear_tabla_seguimiento()
+
+            # Validar el estado
+            estado = datos.get("ESTADO", "").upper()
+            if estado not in ["ACTIVO", "SUSPENDIDO", "PROCESO"]:
+                print(
+                    f"Error: ESTADO '{estado}' no válido. Debe ser ACTIVO, SUSPENDIDO o PROCESO"
+                )
+                return False
+
+            # Validar la acción
+            accion = datos.get("ACCION", "").upper()
+            if accion not in ["MEDICION", "DESARROLLO", "ASIGNACION"]:
+                print(
+                    f"Error: ACCION '{accion}' no válida. Debe ser MEDICION, DESARROLLO o ASIGNACION"
+                )
+                return False
+
+            # Preparar datos completos
+            datos_completos = {
+                "OBJECTID_REF": objectid_ref,
+                "ESTADO": estado,
+                "ACCION": accion,
+                "DEPARTAMENTO": datos.get("DEPARTAMENTO", ""),
+                "GERENCIA": datos.get("GERENCIA", ""),
+                "Usuario_Sistema": datos.get("Usuario", "Sistema"),
+                "Fecha_Registro": datetime.now(),
+            }
+
+            # Construir la consulta SQL
+            campos = ", ".join([f"[{campo}]" for campo in datos_completos.keys()])
+            placeholders = ", ".join(["?" for _ in datos_completos.keys()])
+            valores = list(datos_completos.values())
+
+            sql = f"INSERT INTO [seguimiento] ({campos}) VALUES ({placeholders})"
+
+            self.cursor.execute(sql, valores)
+            self.conn.commit()
+            print("Registro de seguimiento agregado correctamente.")
+            return True
+
+        except pyodbc.Error as e:
+            print(f"Error al agregar registro de seguimiento: {e}")
+            self.conn.rollback()
+            return False
+
+    def agregar_servicio_tecnico(self, objectid_ref, datos):
+        """
+        Agrega un nuevo registro a la tabla servicio_tecnico
+
+        Args:
+            objectid_ref (int): OBJECTID de referencia en lotes_muestra
+            datos (dict): Datos del servicio técnico con las claves:
+                        TECNICO_RESPONSABLE, CULTIVO, FECHA_SIEMBRA,
+                        PREPARACION_TIERRA, RIESGO, CONTROL_PLAGAS,
+                        FERTILIZACION, COSECHA
+
+        Returns:
+            bool: True si se agregó correctamente
+        """
+        if not self.conn:
+            if not self.conectar():
+                return False
+
+        try:
+            # Convertir a entero Python estándar si es necesario
+            objectid_ref = int(objectid_ref)
+
+            # Verificar que la tabla existe
+            tablas = self.listar_tablas()
+            if "servicio_tecnico" not in tablas:
+                self.crear_tabla_servicio_tecnico()
+
+            # Validar preparación de tierra
+            prep_tierra = datos.get("PREPARACION_TIERRA", "").upper()
+            if prep_tierra not in ["CORTE", "CRUCE", "RASTRA"]:
+                print(
+                    f"Error: PREPARACION_TIERRA '{prep_tierra}' no válida. Debe ser CORTE, CRUCE o RASTRA"
+                )
+                return False
+
+            # Validar riesgo
+            riesgo = datos.get("RIESGO", "").upper()
+            if riesgo not in ["SECANO", "GRAVEDAD", "ASPERSION", "GOTEO"]:
+                print(
+                    f"Error: RIESGO '{riesgo}' no válido. Debe ser SECANO, GRAVEDAD, ASPERSION o GOTEO"
+                )
+                return False
+
+            # Preparar datos completos
+            datos_completos = {
+                "OBJECTID_REF": objectid_ref,
+                "TECNICO_RESPONSABLE": datos.get("TECNICO_RESPONSABLE", ""),
+                "CULTIVO": datos.get("CULTIVO", ""),
+                "FECHA_SIEMBRA": datos.get("FECHA_SIEMBRA", datetime.now()),
+                "PREPARACION_TIERRA": prep_tierra,
+                "RIESGO": riesgo,
+                "CONTROL_PLAGAS": bool(datos.get("CONTROL_PLAGAS", False)),
+                "FERTILIZACION": bool(datos.get("FERTILIZACION", False)),
+                "COSECHA": bool(datos.get("COSECHA", False)),
+                "Usuario_Sistema": datos.get("Usuario", "Sistema"),
+                "Fecha_Registro": datetime.now(),
+            }
+
+            # Construir la consulta SQL
+            campos = ", ".join([f"[{campo}]" for campo in datos_completos.keys()])
+            placeholders = ", ".join(["?" for _ in datos_completos.keys()])
+            valores = list(datos_completos.values())
+
+            sql = f"INSERT INTO [servicio_tecnico] ({campos}) VALUES ({placeholders})"
+
+            self.cursor.execute(sql, valores)
+            self.conn.commit()
+            print("Registro de servicio técnico agregado correctamente.")
+            return True
+
+        except pyodbc.Error as e:
+            print(f"Error al agregar registro de servicio técnico: {e}")
+            self.conn.rollback()
+            return False
+
+    def obtener_titulares(self, filtro=None):
+        """
+        Obtiene registros de titulares con opción de filtrado
+
+        Args:
+            filtro (str, optional): Condición WHERE para filtrar
+
+        Returns:
+            pandas.DataFrame: Titulares registrados
+        """
+        if not self.conn:
+            if not self.conectar():
+                return None
+
+        try:
+            sql = "SELECT * FROM [titular]"
+            if filtro:
+                sql += f" WHERE {filtro}"
+
+            return pd.read_sql(sql, self.conn)
+        except pyodbc.Error as e:
+            print(f"Error al obtener titulares: {e}")
+            return None
+
+    def obtener_seguimientos(self, filtro=None):
+        """
+        Obtiene registros de seguimientos con opción de filtrado
+
+        Args:
+            filtro (str, optional): Condición WHERE para filtrar
+
+        Returns:
+            pandas.DataFrame: Seguimientos registrados
+        """
+        if not self.conn:
+            if not self.conectar():
+                return None
+
+        try:
+            sql = "SELECT * FROM [seguimiento]"
+            if filtro:
+                sql += f" WHERE {filtro}"
+
+            return pd.read_sql(sql, self.conn)
+        except pyodbc.Error as e:
+            print(f"Error al obtener seguimientos: {e}")
+            return None
+
+    def obtener_servicios_tecnicos(self, filtro=None):
+        """
+        Obtiene registros de servicios técnicos con opción de filtrado
+
+        Args:
+            filtro (str, optional): Condición WHERE para filtrar
+
+        Returns:
+            pandas.DataFrame: Servicios técnicos registrados
+        """
+        if not self.conn:
+            if not self.conectar():
+                return None
+
+        try:
+            sql = "SELECT * FROM [servicio_tecnico]"
+            if filtro:
+                sql += f" WHERE {filtro}"
+
+            return pd.read_sql(sql, self.conn)
+        except pyodbc.Error as e:
+            print(f"Error al obtener servicios técnicos: {e}")
+            return None
