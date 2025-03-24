@@ -1,0 +1,3 @@
+﻿{
+  "prompt": "Estos son los datos actuales de un lote agrícola: {{input_data}}. Indica qué acciones deberían realizarse a corto plazo para mejorar su productividad."
+}

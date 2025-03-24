@@ -1,0 +1,3 @@
+﻿{
+  "prompt": "Analiza estos datos: {{input_data}}. ¿Detectas errores, inconsistencias o datos inválidos? Lista cada anomalía encontrada y por qué es un problema."
+}

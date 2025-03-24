@@ -1,0 +1,3 @@
+﻿{
+  "prompt": "Con base en los siguientes datos del lote, genera un resumen ejecutivo de los servicios técnicos, titulares y seguimientos. Identifica puntos clave: {{input_data}}"
+}

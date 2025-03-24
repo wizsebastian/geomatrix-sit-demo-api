@@ -1,0 +1,3 @@
+﻿{
+  "prompt": "Basado en los datos del lote: {{input_data}}, predice cuál debería ser la próxima acción técnica (por ejemplo: fertilización, control de plagas o cosecha) y justifica por qué."
+}

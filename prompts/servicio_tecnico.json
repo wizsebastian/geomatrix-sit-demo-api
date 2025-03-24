@@ -1,0 +1,11 @@
+{
+    "prompt": {
+        "analisis": {
+          "context": "estos datos son datos recolectados de arcGis sobre predios, y datos sobre servicios tecnicos hechos en ese predio",
+          "datos_incluidos": ["lote", "servicio_tecnico"],
+          "goal": "Responde con una lista de recomendaciones: Identificar ineficiencias, riesgos y oportunidades en la gestión agrícola, integrando datos de lotes y servicios técnicos.",
+          "restricciones": "no debes dar un plan con primeros pasos, tu respuesta debe ser solo en base a los datos proporcionados, no yapping"
+        }
+      }
+}
+  

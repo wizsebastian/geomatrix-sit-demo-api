@@ -1,0 +1,3 @@
+﻿{
+  "prompt": "Evalúa la salud operativa del lote con estos datos: {{input_data}}. Asigna un puntaje de 1 a 10 y explica los factores que influyen en ese puntaje."
+}

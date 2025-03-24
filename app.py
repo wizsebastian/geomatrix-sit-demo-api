@@ -7,7 +7,11 @@ import pandas as pd
 from flask_cors import CORS
 from flask import Flask, g, request, jsonify
 import pyodbc
+from ai_manager import AIAnalysisManager
 
+ai_manager = AIAnalysisManager(
+    api_key="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"
+)
 app = Flask(__name__)
 CORS(app, methods=["GET", "POST", "PUT", "DELETE"])
 
@@ -17,6 +21,10 @@ DRIVER = "Microsoft Access Driver (*.mdb, *.accdb)"
 
 # Instancia global del gestor
 db_manager = GeoDBLotesManager(DATABASE_PATH)
+
+ai_manager = AIAnalysisManager(
+    api_key="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"
+)
 
 
 # Serializador de fechas para JSON
@@ -56,6 +64,41 @@ def health_check():
             "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         }
     )
+
+
+@app.route("/api/analisis/resumen", methods=["POST"])
+def analisis_resumen():
+    data = request.get_json()
+    resultado = ai_manager.analyze("resumen_lote", data)
+    return jsonify({"analisis": resultado})
+
+
+@app.route("/api/analisis/recomendaciones", methods=["POST"])
+def analisis_recomendaciones():
+    data = request.get_json()
+    resultado = ai_manager.analyze("recomendaciones_lote", data)
+    return jsonify({"analisis": resultado})
+
+
+@app.route("/api/analisis/anomalias", methods=["POST"])
+def analisis_anomalias():
+    data = request.get_json()
+    resultado = ai_manager.analyze("detectar_anomalias", data)
+    return jsonify({"analisis": resultado})
+
+
+@app.route("/api/analisis/score", methods=["POST"])
+def analisis_score():
+    data = request.get_json()
+    resultado = ai_manager.analyze("score_salud_lote", data)
+    return jsonify({"analisis": resultado})
+
+
+@app.route("/api/analisis/proxima_accion", methods=["POST"])
+def analisis_proxima_accion():
+    data = request.get_json()
+    resultado = ai_manager.analyze("proxima_accion_lote", data)
+    return jsonify({"analisis": resultado})
 
 
 @app.route("/api/tablas", methods=["GET"])
@@ -147,6 +190,21 @@ def get_titulares():
                 titular[key] = json_serial(value)
 
     return jsonify({"titulares": titulares_list})
+
+
+@app.route("/api/ai/servicio_tecnico", methods=["POST"])
+def ai_servicio_tecnico():
+    try:
+        data = request.get_json()
+        data_defined = {
+            "servicios_tecnicos": data,
+            "lote": data.get("lote"),
+        }
+        # Use the global ai_manager instance instead of creating a new one
+        result = ai_manager.analyze("servicio_tecnico", data_defined)
+        return jsonify({"result": result})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 @app.route("/api/titular", methods=["POST"])
