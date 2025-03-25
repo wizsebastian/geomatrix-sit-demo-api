@@ -9,22 +9,48 @@ from flask import Flask, g, request, jsonify
 import pyodbc
 from ai_manager import AIAnalysisManager
 
-ai_manager = AIAnalysisManager(
-    api_key="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"
-)
+ai_manager = AIAnalysisManager()
 app = Flask(__name__)
+
 CORS(app, methods=["GET", "POST", "PUT", "DELETE"])
 
 # Ruta de la base de datos
+# DATABASE_PATH = os.path.abspath("C:\Users\luiss\test-location-db")
 DATABASE_PATH = os.path.abspath("./IAD.mdb")
+# DATABASE_PATH = "C:\\Users\\luiss\\test-location-db\\IAD.mdb"
 DRIVER = "Microsoft Access Driver (*.mdb, *.accdb)"
 
 # Instancia global del gestor
 db_manager = GeoDBLotesManager(DATABASE_PATH)
 
-ai_manager = AIAnalysisManager(
-    api_key="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"
-)
+# ai_manager = AIAnalysisManager()
+
+
+def initialize_database():
+    try:
+        print("Inicializando base de datos y verificando tablas...")
+        connection_string = f"DRIVER={{{DRIVER}}};DBQ={DATABASE_PATH};"
+        conn = pyodbc.connect(connection_string)
+
+        # Verificar tablas existentes
+        existing_tables = db_manager.listar_tablas(conn)
+        print(f"Tablas existentes: {existing_tables}")
+
+        # Crear tablas si es necesario
+        result = db_manager.verificar_y_crear_tablas(conn)
+
+        # Cerrar la conexión
+        conn.close()
+
+        if result:
+            print("Inicialización de base de datos exitosa")
+        else:
+            print("ADVERTENCIA: Falló la inicialización de la base de datos")
+
+        return result
+    except Exception as e:
+        print(f"ERROR durante la inicialización de la base de datos: {e}")
+        return False
 
 
 # Serializador de fechas para JSON
@@ -325,6 +351,27 @@ def get_servicios_tecnicos():
     return jsonify({"servicios_tecnicos": servicios_list})
 
 
+@app.route("/api/database/status", methods=["GET"])
+def database_status():
+    """Endpoint para verificar el estado de la base de datos y tablas"""
+    try:
+        tables = db_manager.listar_tablas(g.db_conn)
+        required_tables = ["titular", "seguimiento", "servicio_tecnico"]
+
+        missing_tables = [table for table in required_tables if table not in tables]
+
+        return jsonify(
+            {
+                "status": "ok",
+                "tables_exist": all(table in tables for table in required_tables),
+                "existing_tables": tables,
+                "missing_tables": missing_tables,
+            }
+        )
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
 @app.route("/api/servicio_tecnico", methods=["POST"])
 def crear_servicio_tecnico():
     try:
@@ -389,4 +436,5 @@ def crear_servicio_tecnico():
 
 
 if __name__ == "__main__":
+    initialize_database()
     app.run(debug=True, port=5000)

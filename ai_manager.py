@@ -1,14 +1,29 @@
 import os
 import json
 import openai
+from openai import OpenAI  # Importar la clase principal del cliente
 
 
 class AIAnalysisManager:
-    def __init__(self, api_key=None):
-        self.api_key = api_key or os.getenv("OPENAI_API_KEY")
-        openai.api_key = self.api_key
+    def __init__(
+        self,
+    ):
+        # self.api_key = os.environ.get("OPENAI_API_KEY")
+        self.api_key = "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"
+
+        if self.api_key is None:
+            raise ValueError(
+                "API key not found. Please provide it explicitly or set the OPENAI_API_KEY environment variable."
+            )
+
+        # Crear el cliente de OpenAI con la API key
+        self.client = OpenAI(api_key=self.api_key)
+
+        # Para depuración, mostrar los primeros 8 caracteres de la clave
+        print(f"#########################API Key: {self.api_key[:8]}...")
 
     def load_prompt(self, prompt_name):
+        # Resto del método igual
         prompt_path = os.path.join("prompts", f"{prompt_name}.json")
         if not os.path.exists(prompt_path):
             raise FileNotFoundError(f"Prompt file '{prompt_path}' not found.")
@@ -46,8 +61,8 @@ Datos:
                 print(filled_prompt)
                 print("=======================")
 
-            # Llamada a OpenAI
-            response = openai.chat.completions.create(
+            # Llamada a OpenAI usando el cliente
+            response = self.client.chat.completions.create(
                 model="gpt-4",
                 messages=[
                     {
