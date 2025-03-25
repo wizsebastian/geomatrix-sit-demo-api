@@ -196,6 +196,8 @@ def get_titulares():
 def ai_servicio_tecnico():
     try:
         data = request.get_json()
+        if data.get("lote") and "Shape" in data.get("lote"):
+            del data.get("lote")["Shape"]
         data_defined = {
             "servicios_tecnicos": data,
             "lote": data.get("lote"),
